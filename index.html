@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>モダン画像エディター</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+  <style>
+    :root {
+      --bg-color: #121212;
+      --panel-bg: rgba(30, 30, 30, 0.7);
+      --border: rgba(255, 255, 255, 0.1);
+      --accent: #6C5CE7;
+      --accent-hover: #a29bfe;
+      --text: #f5f6fa;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: var(--bg-color);
+      color: var(--text);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* 左側のツールバー */
+    .toolbar {
+      width: 250px;
+      background: var(--panel-bg);
+      backdrop-filter: blur(10px);
+      border-right: 1px solid var(--border);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      overflow-y: auto;
+    }
+
+    h2 {
+      font-size: 1.2rem;
+      margin: 0 0 10px 0;
+      color: #fff;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 10px;
+    }
+
+    button, select, input[type="file"]::file-selector-button {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 10px 15px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-size: 0.9rem;
+      width: 100%;
+      text-align: left;
+    }
+
+    button:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: var(--accent);
+    }
+
+    .primary-btn {
+      background: var(--accent);
+      border: none;
+      text-align: center;
+      font-weight: bold;
+    }
+
+    .primary-btn:hover {
+      background: var(--accent-hover);
+    }
+
+    /* 中央のキャンバスエリア */
+    .canvas-container-wrapper {
+      flex-grow: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #0f0f0f;
+      background-image: 
+        linear-gradient(45deg, #1a1a1a 25%, transparent 25%), 
+        linear-gradient(-45deg, #1a1a1a 25%, transparent 25%), 
+        linear-gradient(45deg, transparent 75%, #1a1a1a 75%), 
+        linear-gradient(-45deg, transparent 75%, #1a1a1a 75%);
+      background-size: 20px 20px;
+      background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+      padding: 20px;
+      overflow: auto;
+    }
+
+    canvas {
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+
+    /* 右側のレイヤー・エクスポートパネル */
+    .right-panel {
+      width: 250px;
+      background: var(--panel-bg);
+      backdrop-filter: blur(10px);
+      border-left: 1px solid var(--border);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    .controls-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="toolbar">
+    <h2>ツール</h2>
+    <div class="controls-group">
+      <label for="image-upload" style="cursor: pointer;">
+        <button style="pointer-events: none;">🖼️ 画像を追加</button>
+      </label>
+      <input type="file" id="image-upload" accept="image/*" style="display: none;">
+      
+      <button id="add-text">📝 テキストを追加</button>
+      <button id="delete-item">🗑️ 選択アイテムを削除</button>
+      <button id="clear-canvas">🧹 キャンバスをクリア</button>
+    </div>
+
+    <h2>画像加工・フィルター</h2>
+    <div class="controls-group">
+      <button id="filter-grayscale">⚪ モノクロ</button>
+      <button id="filter-sepia">🟤 セピア</button>
+      <button id="auto-bg-remove" style="border-color: #e84393; color: #fd79a8;">✨ 背景自動削除 (AI)</button>
+    </div>
+  </div>
+
+  <div class="canvas-container-wrapper">
+    <canvas id="main-canvas" width="800" height="600"></canvas>
+  </div>
+
+  <div class="right-panel">
+    <h2>レイヤー操作</h2>
+    <div class="controls-group">
+      <button id="layer-up">⬆️ 前面へ移動</button>
+      <button id="layer-down">⬇️ 背面へ移動</button>
+    </div>
+
+    <h2>エクスポート</h2>
+    <div class="controls-group">
+      <select id="export-format">
+        <option value="png">PNG形式</option>
+        <option value="jpeg">JPEG形式</option>
+        <option value="webp">WebP形式</option>
+      </select>
+      <button id="export-btn" class="primary-btn">💾 画像を保存</button>
+    </div>
+  </div>
+
+  <script>
+    // Canvasの初期化 (Fabric.js)
+    const canvas = new fabric.Canvas('main-canvas', {
+      backgroundColor: '#ffffff'
+    });
+
+    // --- ツール機能 ---
+
+    // 画像の追加
+    document.getElementById('image-upload').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(f) {
+        const data = f.target.result;
+        fabric.Image.fromURL(data, function(img) {
+          // 画像が大きすぎる場合はリサイズ
+          if(img.width > canvas.width) {
+            img.scaleToWidth(canvas.width * 0.8);
+          }
+          canvas.add(img);
+          canvas.centerObject(img);
+          canvas.setActiveObject(img);
+        });
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // テキストの追加
+    document.getElementById('add-text').addEventListener('click', () => {
+      const text = new fabric.IText('編集テキスト', {
+        left: 100,
+        top: 100,
+        fontFamily: 'Segoe UI',
+        fill: '#000000',
+        fontSize: 40
+      });
+      canvas.add(text);
+      canvas.setActiveObject(text);
+    });
+
+    // 選択アイテムの削除
+    document.getElementById('delete-item').addEventListener('click', () => {
+      const activeObjects = canvas.getActiveObjects();
+      if (activeObjects.length) {
+        canvas.discardActiveObject();
+        activeObjects.forEach(function(object) {
+          canvas.remove(object);
+        });
+      }
+    });
+
+    // キャンバスのクリア
+    document.getElementById('clear-canvas').addEventListener('click', () => {
+      if(confirm('キャンバスをすべて消去しますか？')) {
+        canvas.clear();
+        canvas.backgroundColor = '#ffffff';
+        canvas.renderAll();
+      }
+    });
+
+    // --- レイヤー操作 ---
+    document.getElementById('layer-up').addEventListener('click', () => {
+      const activeObject = canvas.getActiveObject();
+      if (activeObject) canvas.bringForward(activeObject);
+    });
+
+    document.getElementById('layer-down').addEventListener('click', () => {
+      const activeObject = canvas.getActiveObject();
+      if (activeObject) canvas.sendBackwards(activeObject);
+    });
+
+    // --- フィルター機能 ---
+    function applyFilter(index, filter) {
+      const activeObject = canvas.getActiveObject();
+      if (activeObject && activeObject.type === 'image') {
+        activeObject.filters[index] = activeObject.filters[index] ? null : filter;
+        activeObject.applyFilters();
+        canvas.renderAll();
+      } else {
+        alert('画像を選択してください');
+      }
+    }
+
+    document.getElementById('filter-grayscale').addEventListener('click', () => {
+      applyFilter(0, new fabric.Image.filters.Grayscale());
+    });
+
+    document.getElementById('filter-sepia').addEventListener('click', () => {
+      applyFilter(1, new fabric.Image.filters.Sepia());
+    });
+
+    // --- 背景自動削除 (モックアップ) ---
+    document.getElementById('auto-bg-remove').addEventListener('click', () => {
+      alert('【開発者向けノート】\n精度の高い「自動背景削除機能」を実装するには、@imgly/background-removal などの機械学習ライブラリ、または remove.bg などの外部APIをこのボタンの処理に組み込む必要があります。');
+    });
+
+    // --- エクスポート機能 ---
+    document.getElementById('export-btn').addEventListener('click', () => {
+      const format = document.getElementById('export-format').value;
+      const dataURL = canvas.toDataURL({
+        format: format,
+        quality: 0.9 // JPEG/WebPの画質
+      });
+
+      // ダウンロードリンクを生成してクリック
+      const link = document.createElement('a');
+      link.download = `edited-image.${format}`;
+      link.href = dataURL;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    });
+
+    // レスポンシブ対応（簡易）
+    window.addEventListener('resize', () => {
+      // 必要に応じてキャンバスサイズをウィンドウに合わせる処理を追加
+    });
+  </script>
+</body>
+</html>
