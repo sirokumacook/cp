@@ -3,353 +3,459 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>超高機能 画像エディター</title>
+  <title>Studio Nova | Professional Image Editor</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700&family=M+PLUS+Rounded+1c:wght@400;700&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+  
   <style>
     :root {
-      --bg-color: #0d0d0d;
-      --panel-bg: rgba(20, 20, 20, 0.85);
-      --border: rgba(255, 255, 255, 0.1);
-      --accent: #00cec9;
-      --accent-hover: #81ecec;
-      --text: #dfe6e9;
+      --bg-main: #0a0a0b;
+      --sidebar-bg: rgba(20, 20, 22, 0.8);
+      --accent: #00d2ff;
+      --accent-dark: #3a7bd5;
+      --border: rgba(255, 255, 255, 0.08);
+      --text: #e0e0e0;
+      --text-dim: #888;
+      --glass: rgba(255, 255, 255, 0.03);
+      --glass-hover: rgba(255, 255, 255, 0.08);
+      --shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
     }
 
-    body {
-      margin: 0; padding: 0; background-color: var(--bg-color); color: var(--text);
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+    * { box-sizing: border-box; outline: none; }
+    body, html {
+      margin: 0; padding: 0; height: 100vh; width: 100vw;
+      background-color: var(--bg-main); color: var(--text);
+      font-family: 'Inter', 'Noto Sans JP', sans-serif; overflow: hidden;
     }
 
-    /* 上部メニューバー */
-    .top-bar {
-      height: 50px; background: var(--panel-bg); border-bottom: 1px solid var(--border);
-      display: flex; align-items: center; padding: 0 20px; gap: 15px; backdrop-filter: blur(10px);
+    /* --- レイアウト構成 --- */
+    .app-container {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      grid-template-rows: 50px 1fr 30px;
+      height: 100vh;
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    .main-area { display: flex; flex-grow: 1; overflow: hidden; }
-
-    /* サイドバー共通 */
-    .sidebar {
-      width: 260px; background: var(--panel-bg); backdrop-filter: blur(10px);
-      display: flex; flex-direction: column; overflow-y: auto;
+    /* 上部バー */
+    header {
+      grid-column: 1 / 4;
+      background: var(--sidebar-bg);
+      backdrop-filter: blur(15px);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; padding: 0 20px; gap: 20px;
+      z-index: 100;
     }
-    .sidebar-left { border-right: 1px solid var(--border); }
-    .sidebar-right { border-left: 1px solid var(--border); }
 
-    .panel-section { padding: 15px; border-bottom: 1px solid var(--border); }
-    .panel-section h3 { margin: 0 0 10px 0; font-size: 0.9rem; color: #b2bec3; text-transform: uppercase; }
+    .brand { font-weight: 800; letter-spacing: 1px; color: var(--accent); font-size: 1.2rem; }
 
-    /* ボタン・入力要素 */
-    button, select, input[type="color"], input[type="range"] {
-      width: 100%; background: rgba(255, 255, 255, 0.05); color: var(--text);
-      border: 1px solid var(--border); padding: 8px 12px; border-radius: 6px;
-      cursor: pointer; transition: 0.2s; font-size: 0.85rem; margin-bottom: 5px; text-align: left;
+    /* 左ツールバー */
+    .sidebar-left {
+      width: 70px; background: var(--sidebar-bg); backdrop-filter: blur(15px);
+      border-right: 1px solid var(--border); display: flex; flex-direction: column;
+      align-items: center; padding: 15px 0; gap: 10px; z-index: 90;
+      transition: transform 0.4s ease;
     }
-    button:hover { background: rgba(255, 255, 255, 0.15); border-color: var(--accent); }
-    .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
-    
-    .primary-btn { background: var(--accent); color: #000; font-weight: bold; text-align: center; }
-    .primary-btn:hover { background: var(--accent-hover); }
-    .danger-btn { border-color: #d63031; color: #ff7675; }
 
-    /* キャンバスエリア */
-    .canvas-wrapper {
-      flex-grow: 1; position: relative; display: flex; justify-content: center; align-items: center;
-      background: #111;
-      background-image: linear-gradient(45deg, #1a1a1a 25%, transparent 25%), linear-gradient(-45deg, #1a1a1a 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #1a1a1a 75%), linear-gradient(-45deg, transparent 75%, #1a1a1a 75%);
-      background-size: 20px 20px; background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
-      overflow: auto;
+    /* 右プロパティ・レイヤーパネル */
+    .sidebar-right {
+      width: 300px; background: var(--sidebar-bg); backdrop-filter: blur(15px);
+      border-left: 1px solid var(--border); display: flex; flex-direction: column;
+      z-index: 90; transition: transform 0.4s ease; overflow-y: auto;
     }
-    canvas { box-shadow: 0 0 40px rgba(0,0,0,0.8); }
 
-    .tool-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: 0.8rem; }
-    .tool-row input[type="range"] { width: 60%; }
+    /* 中央キャンバス */
+    main {
+      background: #111; position: relative; display: flex;
+      justify-content: center; align-items: center; overflow: auto;
+      background-image: radial-gradient(var(--border) 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+
+    /* 下部ステータス */
+    footer {
+      grid-column: 1 / 4; background: var(--sidebar-bg); border-top: 1px solid var(--border);
+      font-size: 0.75rem; display: flex; align-items: center; padding: 0 20px; color: var(--text-dim);
+    }
+
+    /* --- コンポーネント --- */
+    .tool-btn {
+      width: 44px; height: 44px; border-radius: 10px; border: 1px solid transparent;
+      background: var(--glass); color: var(--text); cursor: pointer;
+      display: flex; align-items: center; justify-content: center; font-size: 1.2rem;
+      transition: all 0.2s;
+    }
+    .tool-btn:hover { background: var(--glass-hover); border-color: var(--accent); }
+    .tool-btn.active { background: var(--accent); color: #000; }
+
+    .panel-section { padding: 20px; border-bottom: 1px solid var(--border); }
+    .panel-title { font-size: 0.8rem; font-weight: 700; color: var(--text-dim); margin-bottom: 15px; text-transform: uppercase; }
+
+    input, select, button.action-btn {
+      width: 100%; background: var(--glass); border: 1px solid var(--border);
+      border-radius: 6px; padding: 10px; color: var(--text); font-size: 0.85rem;
+      margin-bottom: 10px; transition: 0.2s;
+    }
+    input:focus { border-color: var(--accent); background: var(--glass-hover); }
+    button.action-btn { cursor: pointer; font-weight: 600; text-align: center; border: none; }
+    button.action-btn.primary { background: linear-gradient(135deg, var(--accent), var(--accent-dark)); color: #000; }
+    button.action-btn.primary:hover { opacity: 0.9; transform: translateY(-1px); }
+
+    /* レイヤーリスト */
+    #layer-list { list-style: none; padding: 0; margin: 0; }
+    .layer-item {
+      display: flex; align-items: center; gap: 10px; padding: 10px;
+      background: var(--glass); border-radius: 8px; margin-bottom: 5px;
+      cursor: pointer; border: 1px solid transparent; transition: 0.2s;
+    }
+    .layer-item:hover { background: var(--glass-hover); }
+    .layer-item.active { border-color: var(--accent); background: rgba(0, 210, 255, 0.1); }
+    .layer-thumb { width: 30px; height: 30px; background: #333; border-radius: 4px; object-fit: cover; }
+    .layer-name { flex-grow: 1; font-size: 0.8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* UI非表示用クラス */
+    .ui-hidden .sidebar-left { transform: translateX(-100%); }
+    .ui-hidden .sidebar-right { transform: translateX(100%); }
+    .ui-hidden { grid-template-columns: 0px 1fr 0px; }
+
+    .canvas-container { box-shadow: var(--shadow); }
+
+    /* スライダー */
+    .control-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .control-row label { width: 80px; font-size: 0.75rem; color: var(--text-dim); }
+    input[type="range"] { -webkit-appearance: none; background: var(--border); height: 4px; border-radius: 2px; }
+    input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; background: var(--accent); border-radius: 50%; cursor: pointer; }
   </style>
 </head>
 <body>
 
-  <div class="top-bar">
-    <div style="font-weight: bold; color: var(--accent); margin-right: 20px;">IMAGE STUDIO PRO</div>
-    <button id="undo-btn" style="width: auto;">↩️ 元に戻す</button>
-    <button id="redo-btn" style="width: auto;">↪️ やり直す</button>
-    <label for="image-upload" style="cursor: pointer; margin-bottom: 0;">
-      <button style="pointer-events: none; width: auto; background: var(--accent); color: #000;">📁 画像を開く</button>
-    </label>
-    <input type="file" id="image-upload" accept="image/*" style="display: none;">
-    <button id="export-btn" class="primary-btn" style="width: auto; margin-left: auto;">💾 保存する</button>
-  </div>
-
-  <div class="main-area">
-    <div class="sidebar sidebar-left">
-      <div class="panel-section">
-        <h3>基本ツール</h3>
-        <button id="select-mode">🖱️ 選択モード</button>
-        <button id="delete-item" class="danger-btn">🗑️ 選択アイテムを削除</button>
-        <button id="clear-canvas" class="danger-btn">🧹 すべてクリア</button>
+  <div class="app-container" id="app-shell">
+    <header>
+      <div class="brand">STUDIO NOVA</div>
+      <button class="tool-btn" id="toggle-ui" title="UI表示切替">👁️</button>
+      <div style="margin-left: 10px; display: flex; gap: 10px;">
+        <button class="tool-btn" id="undo">↩️</button>
+        <button class="tool-btn" id="redo">↪️</button>
       </div>
-
-      <div class="panel-section">
-        <h3>図形・テキスト</h3>
-        <div class="btn-grid">
-          <button id="add-text">📝 テキスト</button>
-          <button id="add-rect">⬛ 四角形</button>
-          <button id="add-circle">🔴 円形</button>
-          <button id="add-triangle">🔺 三角形</button>
-          <button id="add-line">➖ 直線</button>
+      
+      <div style="margin-left: auto; display: flex; gap: 15px; align-items: center;">
+        <div class="control-row" style="margin-bottom: 0;">
+          <label>W</label><input type="number" id="cv-width" value="800" style="width: 70px; margin: 0;">
+          <label style="width: auto;">H</label><input type="number" id="cv-height" value="600" style="width: 70px; margin: 0;">
+          <button class="action-btn" id="resize-canvas" style="width: auto; margin: 0; padding: 8px 15px;">適用</button>
         </div>
-        <div class="tool-row" style="margin-top: 10px;">
-          <span>塗りつぶし色</span>
-          <input type="color" id="fill-color" value="#00cec9" style="width: 50px; padding: 0;">
-        </div>
+        <button class="action-btn primary" id="export-btn" style="width: 120px; margin: 0;">保存 (PNG)</button>
       </div>
+    </header>
 
-      <div class="panel-section">
-        <h3>フリードローイング</h3>
-        <button id="draw-mode">✏️ ペンツールON/OFF</button>
-        <div class="tool-row">
-          <span>ペンの色</span>
-          <input type="color" id="draw-color" value="#ffffff" style="width: 50px; padding: 0;">
-        </div>
-        <div class="tool-row">
-          <span>太さ</span>
-          <input type="range" id="draw-width" min="1" max="50" value="5">
-        </div>
+    <nav class="sidebar-left">
+      <button class="tool-btn active" id="tool-select" title="選択">🖱️</button>
+      <button class="tool-btn" id="tool-draw" title="ペン">✏️</button>
+      <button class="tool-btn" id="add-text" title="テキスト">T</button>
+      <button class="tool-btn" id="add-rect" title="矩形">⬜</button>
+      <button class="tool-btn" id="add-circle" title="円">⭕</button>
+      <label for="img-upload" class="tool-btn" style="cursor: pointer;">🖼️</label>
+      <input type="file" id="img-upload" hidden accept="image/*">
+      <div style="margin-top: auto;">
+        <button class="tool-btn danger" id="delete-obj" title="削除">🗑️</button>
       </div>
-    </div>
+    </nav>
 
-    <div class="canvas-wrapper">
-      <canvas id="main-canvas" width="800" height="600"></canvas>
-    </div>
+    <main id="main-viewport">
+      <canvas id="c"></canvas>
+    </main>
 
-    <div class="sidebar sidebar-right">
+    <aside class="sidebar-right">
       <div class="panel-section">
-        <h3>自動背景削除 (色認識)</h3>
-        <p style="font-size: 0.75rem; color: #aaa; margin-top: 0;">画像を選択し、消したい色を指定してクリック</p>
-        <div class="tool-row">
-          <span>消す色</span>
-          <input type="color" id="remove-color" value="#ffffff" style="width: 50px; padding: 0;">
-        </div>
-        <div class="tool-row">
-          <span>許容範囲</span>
-          <input type="range" id="remove-tolerance" min="0" max="1" step="0.01" value="0.2">
-        </div>
-        <button id="apply-bg-remove" style="border-color: #00cec9; color: #00cec9;">✂️ 指定色を透過する</button>
-      </div>
-
-      <div class="panel-section">
-        <h3>画像フィルター</h3>
-        <div class="btn-grid">
-          <button onclick="applyFilter(new fabric.Image.filters.Grayscale())">白黒</button>
-          <button onclick="applyFilter(new fabric.Image.filters.Sepia())">セピア</button>
-          <button onclick="applyFilter(new fabric.Image.filters.Invert())">反転</button>
-          <button onclick="applyFilter(new fabric.Image.filters.Pixelate({blocksize: 8}))">モザイク</button>
-          <button onclick="applyFilter(new fabric.Image.filters.Blur({blur: 0.5}))">ぼかし</button>
-          <button onclick="removeFilters()">リセット</button>
-        </div>
-        <div class="tool-row" style="margin-top: 10px;">
-          <span>明るさ</span>
-          <input type="range" id="brightness-slider" min="-1" max="1" step="0.05" value="0">
+        <div class="panel-title">変形・配置</div>
+        <div class="btn-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px;">
+          <button class="tool-btn" onclick="align('left')">左</button>
+          <button class="tool-btn" onclick="align('center')">中</button>
+          <button class="tool-btn" onclick="align('right')">右</button>
         </div>
       </div>
 
-      <div class="panel-section">
-        <h3>レイヤー・配置操作</h3>
-        <div class="btn-grid">
-          <button id="layer-front">⬆️ 最前面へ</button>
-          <button id="layer-back">⬇️ 最背面へ</button>
-          <button id="layer-up">🔼 前へ</button>
-          <button id="layer-down">🔽 後ろへ</button>
-          <button id="group-items">🔗 グループ化</button>
-          <button id="ungroup-items">🔓 解除</button>
+      <div class="panel-section" id="text-props" style="display: none;">
+        <div class="panel-title">テキスト設定</div>
+        <select id="font-family">
+          <option value="Inter">Inter</option>
+          <option value="Noto Sans JP">Noto Sans JP</option>
+          <option value="M PLUS Rounded 1c">M PLUS Rounded 1c</option>
+          <option value="serif">明朝体</option>
+          <option value="monospace">等幅フォント</option>
+        </select>
+        <div class="control-row">
+          <label>フォント追加</label>
+          <input type="file" id="font-upload" accept=".ttf,.otf,.woff">
+        </div>
+        <div class="control-row">
+          <label>サイズ</label>
+          <input type="range" id="font-size" min="10" max="200" value="40">
+        </div>
+        <div class="control-row">
+          <label>カラー</label>
+          <input type="color" id="text-color" value="#ffffff">
         </div>
       </div>
-    </div>
+
+      <div class="panel-section" id="image-props" style="display: none;">
+        <div class="panel-title">画像フィルター</div>
+        <div class="control-row"><label>明るさ</label><input type="range" class="f-slider" data-filter="Brightness" min="-1" max="1" step="0.01" value="0"></div>
+        <div class="control-row"><label>コントラスト</label><input type="range" class="f-slider" data-filter="Contrast" min="-1" max="1" step="0.01" value="0"></div>
+        <div class="control-row"><label>彩度</label><input type="range" class="f-slider" data-filter="Saturation" min="-1" max="1" step="0.01" value="0"></div>
+        <button class="action-btn" id="btn-remove-bg">背景削除 (色指定)</button>
+      </div>
+
+      <div class="panel-section" style="flex-grow: 1;">
+        <div class="panel-title">レイヤーマネージャー</div>
+        <ul id="layer-list">
+          </ul>
+      </div>
+    </aside>
+
+    <footer>
+      <span>Objects: <span id="obj-count">0</span></span>
+      <span style="margin-left: 20px;">Canvas: <span id="zoom-level">100%</span></span>
+    </footer>
   </div>
 
   <script>
-    // Canvas初期化 (履歴機能付き)
-    const canvas = new fabric.Canvas('main-canvas', {
-      backgroundColor: 'transparent',
-      preserveObjectStacking: true // 選択してもレイヤー順序を保持
+    // --- 初期化 ---
+    const canvas = new fabric.Canvas('c', {
+      width: 800,
+      height: 600,
+      backgroundColor: '#ffffff',
+      preserveObjectStacking: true
     });
 
-    // --- 履歴（アンドゥ・リドゥ）システム ---
-    let state = [];
-    let mods = 0;
-    canvas.on('object:modified', saveHistory);
-    canvas.on('object:added', saveHistory);
-    canvas.on('object:removed', saveHistory);
+    const layerList = document.getElementById('layer-list');
+    const appShell = document.getElementById('app-shell');
 
-    function saveHistory() {
-      if(mods < state.length){
-        state.length = mods;
-      }
-      state.push(JSON.stringify(canvas));
-      mods = state.length;
+    // --- 履歴管理 ---
+    let history = [];
+    let historyIdx = -1;
+
+    function saveState() {
+      if (historyIdx < history.length - 1) history = history.slice(0, historyIdx + 1);
+      history.push(JSON.stringify(canvas));
+      historyIdx++;
+      updateLayerList();
+      document.getElementById('obj-count').innerText = canvas.getObjects().length;
     }
 
-    document.getElementById('undo-btn').addEventListener('click', () => {
-      if (mods > 1) {
-        canvas.clear();
-        canvas.loadFromJSON(state[mods - 2], canvas.renderAll.bind(canvas));
-        mods -= 1;
-      }
-    });
+    // --- UI操作 ---
+    document.getElementById('toggle-ui').onclick = () => appShell.classList.toggle('ui-hidden');
 
-    document.getElementById('redo-btn').addEventListener('click', () => {
-      if (mods < state.length) {
-        canvas.clear();
-        canvas.loadFromJSON(state[mods], canvas.renderAll.bind(canvas));
-        mods += 1;
-      }
-    });
+    document.getElementById('resize-canvas').onclick = () => {
+      const w = parseInt(document.getElementById('cv-width').value);
+      const h = parseInt(document.getElementById('cv-height').value);
+      canvas.setDimensions({ width: w, height: h });
+      saveState();
+    };
 
-    // --- 画像の追加 ---
-    document.getElementById('image-upload').addEventListener('change', function(e) {
-      const file = e.target.files[0];
-      if (!file) return;
+    // --- レイヤー一覧の更新 ---
+    function updateLayerList() {
+      layerList.innerHTML = '';
+      const objects = canvas.getObjects().slice().reverse(); // 背面が下、前面が上
+      objects.forEach((obj, idx) => {
+        const li = document.createElement('li');
+        li.className = `layer-item ${obj === canvas.getActiveObject() ? 'active' : ''}`;
+        
+        let icon = '🔹';
+        if (obj.type === 'i-text') icon = '文字';
+        if (obj.type === 'image') icon = '画像';
+        
+        li.innerHTML = `
+          <span class="layer-name">${icon}: ${obj.type} (${objects.length - idx})</span>
+          <button onclick="toggleLock(${objects.length - 1 - idx})" style="background:none;border:none;cursor:pointer;">${obj.selectable ? '🔓' : '🔒'}</button>
+          <button onclick="toggleVisibility(${objects.length - 1 - idx})" style="background:none;border:none;cursor:pointer;">${obj.visible ? '👁️' : '🕶️'}</button>
+        `;
+        li.onclick = () => {
+          canvas.setActiveObject(obj);
+          canvas.renderAll();
+        };
+        layerList.appendChild(li);
+      });
+    }
+
+    window.toggleVisibility = (idx) => {
+      const obj = canvas.item(idx);
+      obj.set('visible', !obj.visible);
+      canvas.renderAll();
+      updateLayerList();
+    };
+
+    window.toggleLock = (idx) => {
+      const obj = canvas.item(idx);
+      obj.set('selectable', !obj.selectable);
+      obj.set('evented', obj.selectable);
+      canvas.renderAll();
+      updateLayerList();
+    };
+
+    // --- オブジェクト追加系 ---
+    document.getElementById('add-text').onclick = () => {
+      const txt = new fabric.IText('Double Click to Edit', {
+        left: 100, top: 100, fontFamily: 'Inter', fill: '#000000'
+      });
+      canvas.add(txt).setActiveObject(txt);
+      saveState();
+    };
+
+    document.getElementById('add-rect').onclick = () => {
+      canvas.add(new fabric.Rect({ width: 100, height: 100, fill: '#00d2ff', left: 50, top: 50 }));
+      saveState();
+    };
+
+    document.getElementById('add-circle').onclick = () => {
+      canvas.add(new fabric.Circle({ radius: 50, fill: '#3a7bd5', left: 100, top: 100 }));
+      saveState();
+    };
+
+    document.getElementById('img-upload').onchange = (e) => {
       const reader = new FileReader();
-      reader.onload = function(f) {
-        fabric.Image.fromURL(f.target.result, function(img) {
-          if(img.width > canvas.width) img.scaleToWidth(canvas.width * 0.8);
-          canvas.add(img); canvas.centerObject(img); canvas.setActiveObject(img);
+      reader.onload = (f) => {
+        fabric.Image.fromURL(f.target.result, (img) => {
+          img.scaleToWidth(300);
+          canvas.add(img).centerObject(img).setActiveObject(img);
+          saveState();
         });
       };
-      reader.readAsDataURL(file);
-      e.target.value = ''; // 同じ画像を連続で選べるようにリセット
+      reader.readAsDataURL(e.target.files[0]);
+    };
+
+    // --- フォントアップロード ---
+    document.getElementById('font-upload').onchange = (e) => {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      reader.onload = async (f) => {
+        const fontName = file.name.split('.')[0];
+        const fontFace = new FontFace(fontName, f.target.result);
+        await fontFace.load();
+        document.fonts.add(fontFace);
+        
+        const option = document.createElement('option');
+        option.value = fontName;
+        option.innerText = fontName;
+        document.getElementById('font-family').appendChild(option);
+        alert(`フォント "${fontName}" を読み込みました`);
+      };
+      reader.readAsArrayBuffer(file);
+    };
+
+    // --- フィルター適用 ---
+    document.querySelectorAll('.f-slider').forEach(slider => {
+      slider.oninput = function() {
+        const obj = canvas.getActiveObject();
+        if (!obj || obj.type !== 'image') return;
+        
+        const type = this.dataset.filter;
+        let filter = obj.filters.find(f => f && f.type === type);
+        
+        const val = parseFloat(this.value);
+        if (!filter) {
+          if (type === 'Brightness') filter = new fabric.Image.filters.Brightness({ brightness: val });
+          if (type === 'Contrast') filter = new fabric.Image.filters.Contrast({ contrast: val });
+          if (type === 'Saturation') filter = new fabric.Image.filters.Saturation({ saturation: val });
+          obj.filters.push(filter);
+        } else {
+          if (type === 'Brightness') filter.brightness = val;
+          if (type === 'Contrast') filter.contrast = val;
+          if (type === 'Saturation') filter.saturation = val;
+        }
+        obj.applyFilters();
+        canvas.renderAll();
+      };
     });
 
-    // --- 図形・テキスト追加 ---
-    function getFillColor() { return document.getElementById('fill-color').value; }
-
-    document.getElementById('add-text').addEventListener('click', () => {
-      canvas.add(new fabric.IText('テキストを編集', { left: 100, top: 100, fill: getFillColor(), fontFamily: 'Segoe UI' }));
-    });
-    document.getElementById('add-rect').addEventListener('click', () => {
-      canvas.add(new fabric.Rect({ left: 100, top: 100, fill: getFillColor(), width: 100, height: 100 }));
-    });
-    document.getElementById('add-circle').addEventListener('click', () => {
-      canvas.add(new fabric.Circle({ left: 100, top: 100, fill: getFillColor(), radius: 50 }));
-    });
-    document.getElementById('add-triangle').addEventListener('click', () => {
-      canvas.add(new fabric.Triangle({ left: 100, top: 100, fill: getFillColor(), width: 100, height: 100 }));
-    });
-    document.getElementById('add-line').addEventListener('click', () => {
-      canvas.add(new fabric.Line([50, 50, 200, 50], { left: 100, top: 100, stroke: getFillColor(), strokeWidth: 5 }));
+    // --- イベントリスナー ---
+    canvas.on('selection:created', updatePropsPanel);
+    canvas.on('selection:updated', updatePropsPanel);
+    canvas.on('selection:cleared', () => {
+      document.getElementById('text-props').style.display = 'none';
+      document.getElementById('image-props').style.display = 'none';
+      updateLayerList();
     });
 
-    // --- フリードローイング ---
-    document.getElementById('draw-mode').addEventListener('click', function() {
-      canvas.isDrawingMode = !canvas.isDrawingMode;
-      this.style.background = canvas.isDrawingMode ? 'var(--accent)' : '';
-      this.style.color = canvas.isDrawingMode ? '#000' : '';
-    });
-    document.getElementById('draw-color').addEventListener('change', function() {
-      canvas.freeDrawingBrush.color = this.value;
-    });
-    document.getElementById('draw-width').addEventListener('input', function() {
-      canvas.freeDrawingBrush.width = parseInt(this.value, 10);
-    });
-    document.getElementById('select-mode').addEventListener('click', () => {
-      canvas.isDrawingMode = false;
-      document.getElementById('draw-mode').style.background = '';
-      document.getElementById('draw-mode').style.color = '';
-    });
-
-    // --- 普通の自動認識（色認識）による背景削除 ---
-    document.getElementById('apply-bg-remove').addEventListener('click', () => {
-      const activeObject = canvas.getActiveObject();
-      if (!activeObject || activeObject.type !== 'image') {
-        alert('背景を透過したい「画像」を選択してください。');
-        return;
-      }
-
-      // 色選択ピッカーからHEXを取得し、RGBに変換
-      const hexColor = document.getElementById('remove-color').value;
-      const distance = parseFloat(document.getElementById('remove-tolerance').value);
-      
-      const filter = new fabric.Image.filters.RemoveColor({
-        color: hexColor,
-        distance: distance // 0〜1の許容範囲。大きいほど似た色も消える
-      });
-
-      activeObject.filters.push(filter);
-      activeObject.applyFilters();
-      canvas.renderAll();
-      saveHistory(); // 履歴に保存
-    });
-
-    // --- フィルター操作 ---
-    window.applyFilter = function(filterObj) {
+    function updatePropsPanel() {
       const obj = canvas.getActiveObject();
-      if (!obj || obj.type !== 'image') return;
-      obj.filters.push(filterObj);
-      obj.applyFilters();
-      canvas.renderAll();
-      saveHistory();
-    }
-    window.removeFilters = function() {
-      const obj = canvas.getActiveObject();
-      if (!obj || obj.type !== 'image') return;
-      obj.filters = [];
-      obj.applyFilters();
-      canvas.renderAll();
-      saveHistory();
-    }
+      updateLayerList();
+      if (!obj) return;
 
-    document.getElementById('brightness-slider').addEventListener('input', function() {
-      const obj = canvas.getActiveObject();
-      if (!obj || obj.type !== 'image') return;
-      
-      // 既存の明るさフィルターを探して更新、なければ追加
-      let filter = obj.filters.find(f => f && f.type === 'Brightness');
-      if (!filter) {
-        filter = new fabric.Image.filters.Brightness({ brightness: parseFloat(this.value) });
-        obj.filters.push(filter);
+      if (obj.type === 'i-text') {
+        document.getElementById('text-props').style.display = 'block';
+        document.getElementById('image-props').style.display = 'none';
+        document.getElementById('font-family').value = obj.fontFamily;
+        document.getElementById('font-size').value = obj.fontSize;
+      } else if (obj.type === 'image') {
+        document.getElementById('text-props').style.display = 'none';
+        document.getElementById('image-props').style.display = 'block';
       } else {
-        filter.brightness = parseFloat(this.value);
+        document.getElementById('text-props').style.display = 'none';
+        document.getElementById('image-props').style.display = 'none';
       }
-      obj.applyFilters();
-      canvas.renderAll();
-    });
+    }
 
-    // --- 基本操作・レイヤー・エクスポート ---
-    document.getElementById('delete-item').addEventListener('click', () => {
-      canvas.getActiveObjects().forEach(obj => canvas.remove(obj));
+    document.getElementById('font-family').onchange = function() {
+      const obj = canvas.getActiveObject();
+      if (obj && obj.type === 'i-text') {
+        obj.set('fontFamily', this.value);
+        canvas.renderAll();
+        saveState();
+      }
+    };
+
+    document.getElementById('font-size').oninput = function() {
+      const obj = canvas.getActiveObject();
+      if (obj && obj.type === 'i-text') {
+        obj.set('fontSize', parseInt(this.value));
+        canvas.renderAll();
+      }
+    };
+
+    // --- ツール切替 ---
+    document.getElementById('tool-draw').onclick = function() {
+      canvas.isDrawingMode = !canvas.isDrawingMode;
+      this.classList.toggle('active', canvas.isDrawingMode);
+      document.getElementById('tool-select').classList.toggle('active', !canvas.isDrawingMode);
+    };
+    document.getElementById('tool-select').onclick = function() {
+      canvas.isDrawingMode = false;
+      this.classList.add('active');
+      document.getElementById('tool-draw').classList.remove('active');
+    };
+
+    document.getElementById('delete-obj').onclick = () => {
+      canvas.getActiveObjects().forEach(o => canvas.remove(o));
       canvas.discardActiveObject();
-    });
-    document.getElementById('clear-canvas').addEventListener('click', () => {
-      if(confirm('すべて消去しますか？')) canvas.clear();
-    });
+      saveState();
+    };
 
-    document.getElementById('layer-front').addEventListener('click', () => { canvas.bringToFront(canvas.getActiveObject()); });
-    document.getElementById('layer-back').addEventListener('click', () => { canvas.sendToBack(canvas.getActiveObject()); });
-    document.getElementById('layer-up').addEventListener('click', () => { canvas.bringForward(canvas.getActiveObject()); });
-    document.getElementById('layer-down').addEventListener('click', () => { canvas.sendBackwards(canvas.getActiveObject()); });
-
-    document.getElementById('group-items').addEventListener('click', () => {
-      if (!canvas.getActiveObject()) return;
-      if (canvas.getActiveObject().type !== 'activeSelection') return;
-      canvas.getActiveObject().toGroup();
-      canvas.requestRenderAll();
-    });
-    document.getElementById('ungroup-items').addEventListener('click', () => {
-      if (!canvas.getActiveObject()) return;
-      if (canvas.getActiveObject().type !== 'group') return;
-      canvas.getActiveObject().toActiveSelection();
-      canvas.requestRenderAll();
-    });
-
-    document.getElementById('export-btn').addEventListener('click', () => {
+    // --- エクスポート ---
+    document.getElementById('export-btn').onclick = () => {
+      const dataURL = canvas.toDataURL({ format: 'png', quality: 1 });
       const link = document.createElement('a');
-      link.download = `edited-image-${Date.now()}.png`; // 常に高品質なPNGで保存
-      link.href = canvas.toDataURL({ format: 'png', multiplier: 1 });
+      link.download = 'nova-export.png';
+      link.href = dataURL;
       link.click();
+    };
+
+    // ショートカットキー (Delete)
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (canvas.getActiveObject() && !canvas.getActiveObject().isEditing) {
+          canvas.getActiveObjects().forEach(o => canvas.remove(o));
+          canvas.discardActiveObject();
+          saveState();
+        }
+      }
     });
 
-    // 初期状態の保存
-    setTimeout(saveHistory, 100);
+    // 初期状態保存
+    canvas.on('object:modified', saveState);
+    canvas.on('object:added', () => { if(canvas._objects.length > 0) updateLayerList(); });
+    setTimeout(saveState, 500);
+
   </script>
 </body>
 </html>
